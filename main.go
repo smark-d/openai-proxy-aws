@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/smark-d/openai-proxy-aws/server/comm"
+	"github.com/smark-d/openai-proxy-aws/server/filter"
 	"io"
 	"log"
 	"net/http"
@@ -11,6 +13,11 @@ import (
 var target = "https://api.openai.com"
 
 func handlerFunc(w http.ResponseWriter, r *http.Request) {
+	if !filter.Filter(r) {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+
 	_, err := url.Parse(r.URL.String())
 	if err != nil {
 		log.Println("Error parsing URL: ", err.Error())
@@ -52,6 +59,7 @@ func handlerFunc(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	comm.InitConfig()
 	http.HandleFunc("/", handlerFunc)
 	http.ListenAndServe(":8080", nil)
 }
