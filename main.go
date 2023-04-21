@@ -1,56 +1,57 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-lambda-go/lambda"
 	"io"
+	"log"
 	"net/http"
-	"os"
-	"strings"
+	"net/url"
+	"time"
 )
 
-type OpenAIRequest struct {
-	Body string `json:"body"`
-}
+var target = "https://api.openai.com"
 
-func handler(ctx context.Context, request OpenAIRequest) (events.APIGatewayProxyResponse, error) {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		return events.APIGatewayProxyResponse{StatusCode: http.StatusInternalServerError}, fmt.Errorf("OPENAI_API_KEY environment variable is not set")
+func handlerFunc(w http.ResponseWriter, r *http.Request) {
+	_, err := url.Parse(r.URL.String())
+	if err != nil {
+		log.Println("Error parsing URL: ", err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
 	}
 
-	openAIURL := "https://api.openai.com/v1/chat/completions"
-	req, err := http.NewRequest("POST", openAIURL, strings.NewReader(request.Body))
+	targetURL := target + r.URL.Path
+	proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
 	if err != nil {
-		return events.APIGatewayProxyResponse{StatusCode: http.StatusInternalServerError}, err
+		log.Println("Error creating proxy request: ", err.Error())
+		http.Error(w, "Error creating proxy request", http.StatusInternalServerError)
+		return
+	}
+	for headerKey, headerValues := range r.Header {
+		for _, headerValue := range headerValues {
+			proxyReq.Header.Add(headerKey, headerValue)
+		}
+	}
+	client := &http.Client{
+		Timeout: 60 * time.Second,
 	}
 
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", apiKey))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := client.Do(proxyReq)
 	if err != nil {
-		return events.APIGatewayProxyResponse{StatusCode: http.StatusInternalServerError}, err
+		log.Println("Error sending proxy request: ", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return events.APIGatewayProxyResponse{StatusCode: http.StatusInternalServerError}, err
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
 	}
 
-	return events.APIGatewayProxyResponse{
-		StatusCode: resp.StatusCode,
-		Body:       string(body),
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-	}, nil
+	w.WriteHeader(resp.StatusCode)
+	io.CopyBuffer(w, resp.Body, make([]byte, 256))
 }
 
 func main() {
-	lambda.Start(handler)
+	http.HandleFunc("/", handlerFunc)
+	http.ListenAndServe(":8080", nil)
 }
