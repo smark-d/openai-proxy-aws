@@ -9,7 +9,7 @@ type RedisConfig struct {
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
 	Password string `json:"password"`
-	DB       int    `json:"filter"`
+	DB       int    `json:"api"`
 }
 
 type Config struct {

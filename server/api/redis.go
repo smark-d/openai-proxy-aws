@@ -1,4 +1,4 @@
-package filter
+package api
 
 import (
 	"fmt"
@@ -45,6 +45,10 @@ func GetOpenAIkey() (string, error) {
 	return getRedisClient().SRandMember(OPENAIKEYS).Result()
 }
 
+func GetAllOpenAIkey() []string {
+	return getRedisClient().SMembers(OPENAIKEYS).Val()
+}
+
 // RemoveOpenAIkey Remove a key from the set of OpenAI keys
 func RemoveOpenAIkey(value string) error {
 	return getRedisClient().SRem(OPENAIKEYS, value).Err()
@@ -58,6 +62,16 @@ func SetTotalCount(customKey string, count int64) error {
 func GetTotalCount(customKey string) (int64, error) {
 	// get the total count
 	return getRedisClient().Get(TOTAL_COUNT_PREFIX + customKey).Int64()
+}
+
+func RemoveTotalCount(customKey string) error {
+	// remove the total count
+	return getRedisClient().Del(TOTAL_COUNT_PREFIX + customKey).Err()
+}
+
+func ListTotalUser() []string {
+	// list all users with their total count
+	return getRedisClient().Keys(TOTAL_COUNT_PREFIX + "*").Val()
 }
 
 func IncrCurrCount(customKey string) error {

@@ -1,4 +1,4 @@
-package filter
+package api
 
 import (
 	"github.com/go-redis/redis"
